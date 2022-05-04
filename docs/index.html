@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="nb">
+  <head>
+    <title>Lokalt utviklings- og testmiljø med Docker</title>
+    <meta charset="utf-8">
+      
+    <style>
+      @import url(https://fonts.googleapis.com/css?family=Yanone+Kaffeesatz);
+      @import url(https://fonts.googleapis.com/css?family=Droid+Serif:400,700,400italic);
+      @import url(https://fonts.googleapis.com/css?family=Ubuntu+Mono:400,700,400italic);
+
+      :root {
+        --background-color: #101515;
+        --primary-color: #0C4246;
+        --accent-color: #46100c;
+        --text-color: #e6e6e6;
+      }
+
+      body { font-family: 'Droid Serif'; }
+      h1, h2, h3 {
+        font-family: 'Yanone Kaffeesatz';
+        font-weight: normal;
+      }
+      li, p { 
+        line-height: 1.618em;
+        font-size: 1.618em;
+      }
+      svg {
+        /* width: 100%;
+        height: 100%; */
+        max-height: 30em;
+      }
+ 
+      .remark-code, .remark-inline-code {   
+        font-family: 'Ubuntu Mono';
+      }
+
+      .hljs-default .hljs {
+        background-color: var(--background-color);
+        line-height: 0; 
+      }
+      .hljs-default .hljs, .hljs-default .hljs-subst {
+        color: var(--text-color); 
+      }
+      .remark-container {
+        background-color: var(--background-color);
+      }
+      .remark-slide-content {
+        background-color: var(--background-color);
+        color: var(--text-color);
+      }
+    </style>
+  </head>
+  <body>
+    <textarea id="source">
+
+class: center, middle
+
+# Lokalt utviklings- og testmiljø med Docker 
+
+Joar Øyen fra Aztek
+
+---
+
+# Plan for "lyndemonstrasjonen"
+
+- Verktøy
+- Basistjenester
+- Skytjenester
+- Demo
+- Tips og triks
+
+---
+
+# Hvorfor Docker?
+
+- Lett å komme igang med Docker Desktop
+- De fleste utviklingsverktøy har en eller annen form for Docker integrasjon
+- Lett tilgjengelige eksempler for kjøring av kontainere med docker compose 
+
+---
+
+# Verktøy: Docker og containerd
+
+- Docker er firmaet som leverer `Docker Desktop` på Windows og Mac (kommer på Linux)
+- Docker driver [Docker Hub](https://hub.docker.com/)
+- `containerd` er kjøremiljø for kontainere og brukes av både Docker Desktop og Kubernetes
+
+---
+
+# Verktøy: Docker compose
+
+- Sett med kontainere, lagring og nettverk
+- `docker-compose` vs. `docker compose` 
+
+---
+
+# Verktøy: Windows subsystem for Linux 2
+
+- Linux kjerne med native støtte for kontainere
+- Virtualisert IO, nettverk og lagring
+- Utelukker Windows kontainere
+
+---
+
+# Verktøy: PowerShell
+
+- Docker completion
+
+``` sh
+# Install from PowerShell Gallery
+Install-Module DockerCompletion -Scope CurrentUser
+
+# Import
+Import-Module DockerCompletion 
+```
+
+---
+
+# Basistjenester
+
+- Portainer
+- Step CA
+- Traefik
+- Unbound
+
+---
+
+# Skytjenester
+
+- Microsoft SQL Server for Linux
+- Azurite - Azure Storage emulator
+- Azure CosmosDB emulator for "Linux"
+
+---
+
+class: center, middle
+
+# Demo
+
+---
+
+# Eksempel: Lokal tjeneste via Traefik
+
+``` toml
+[http.routers]
+    [http.routers.webapp]
+        rule = "Host(`webapp.localhost`)"
+        entrypoints = ["websecure"]
+        service = "webapp"
+     [http.routers.webapp.tls]
+        certResolver = "localhostca"
+ [http.services]
+    [http.services.webapp.loadBalancer]
+        [[http.services.webapp.loadBalancer.servers]]
+            url = "http://host.docker.internal:5000"
+```
+
+Denne må inn som statisk konfigurasjon i Traefik. Det kan gjøres via Dockerfile og `docker compose build`
+
+---
+
+# Eksempel: Host header konvensjon med Unbound
+
+```
+# A Record
+     local-data: "joar.chainweb.localhost. A 127.0.0.1"
+     local-data: "joaroyendev.chainweb.localhost. A 127.0.0.1"
+     local-data: "onpremidp.joar.chainweb.localhost. A 127.0.0.1"
+```
+
+--
+
+# Eksempel: Host header konvensjon med Xamarin og Unbound
+
+```
+# A Record
+     local-data: "joar.chainweb.localhost. A 10.0.2.2"
+     local-data: "joaroyendev.chainweb.localhost. A 10.0.2.2"
+     local-data: "onpremidp.joar.chainweb.localhost. A 10.0.2.2"
+```
+
+---
+
+# Tips & triks: Oppdater kontainere
+
+``` sh
+docker compose build --pull
+docker compose pull
+docker compose up -d
+```
+
+---
+
+# Tips & triks: WSL lagring
+
+- Lokasjon av vhdx datafil er typisk<br/>
+  `c:\Users\<BRUKERNAVN>\AppData\Local\Docker\wsl\data\ext4.vhdx`
+- Linux filsystemene er tilgjengelig under `\\wsl$` og Linux noden i Explorr i Windows 11
+- Docker volumer ligger typisk under<br/>
+ `\\wsl$\docker-desktop-data\version-pack-data\community\docker\volumes\` 
+
+---
+
+# Tips & triks: WSL Opprydding
+ 
+``` sh
+#NB! "-a" sletter alle images som ikke er i bruk av kjørnde kontainer 
+docker system prune -a
+wsl --shutdown
+optimize-vhd -Path .\ext4.vhdx -Mode full
+```
+
+Kilde: [Scott Hanselman - Shrink your WSL2 Virtual Disks and Docker Images and Reclaim Disk Space](https://www.hanselman.com/blog/shrink-your-wsl2-virtual-disks-and-docker-images-and-reclaim-disk-space)
+
+---
+
+# Tips & triks: Rancher Desktop
+
+- Alternativ til Docker Desktop med Kubernetes
+- nerdctl: Docker kompatibel kommando for å bygge og kjøre kontainere med containerd 
+- Referanse: [Rancher Desktop](https://rancherdesktop.io/)
+
+---
+
+class: center, middle
+
+# Spørsmål?
+
+---
+
+# Referanser
+
+- [Unbound DNS Server Docker Image](https://github.com/MatthewVance/unbound-docker)
+- [Step CA](https://smallstep.com/docs/step-ca/installation/#docker) 
+- [Traefik](https://doc.traefik.io/traefik/providers/docker/)
+- [Portainer Community Edition](https://docs.portainer.io/v/ce-2.9/start/install/server/docker/linux)
+- [Microsoft SQL Server](https://docs.microsoft.com/en-us/sql/linux/quickstart-install-connect-docker?view=sql-server-ver15&pivots=cs1-bash)
+- [Azurite](https://docs.microsoft.com/en-us/azure/storage/common/storage-use-azurite?tabs=docker-hub)
+- [CosmosDB emulator preview](https://docs.microsoft.com/en-us/azure/cosmos-db/linux-emulator?tabs=ssl-netstd21)
+
+    </textarea>
+
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+    <script>
+      mermaid.initialize({
+        startOnLoad:false,
+        flowchartConfig: {
+          width: '100%'
+        }
+      });
+
+      var slideshow = remark.create( {
+        ratio: "16:9"
+      });
+      
+      slideshow.on("afterShowSlide", s => {
+        const [slide] = document.getElementsByClassName("remark-visible");
+        mermaid.init(Array.from(slide.getElementsByClassName("mermaid")));
+      });
+    </script>
+  </body>
+</html>
